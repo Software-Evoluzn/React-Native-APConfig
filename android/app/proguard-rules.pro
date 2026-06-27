@@ -8,3 +8,14 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
+
+# WiFi Manager
+-keep class com.reactnativewifireborn.** { *; }
+
+# Zeroconf
+-keep class com.balthazargronon.RCTZeroconf.** { *; }
+-keep class android.net.nsd.** { *; }
+
+# OkHttp (fetch ke liye)
+-dontwarn okhttp3.**
+-keep class okhttp3.** { *; }
