@@ -45,7 +45,7 @@ export function discoverEspIp({ timeoutMs = 18000 } = {}) {
 
         setTimeout(() => {
             console.log("Scanning...");
-            zc.scan("http", "tcp", "local.");
+            zc.scan("http", "tcp", "local");
         }, 300);
 
         setTimeout(() => {

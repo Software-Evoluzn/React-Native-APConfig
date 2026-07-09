@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View, Text, TouchableOpacity, FlatList, TextInput,
-  Alert, ActivityIndicator, Modal,
+  Alert, ActivityIndicator, Modal, PermissionsAndroid, Platform,
 } from 'react-native';
 import WifiManager from 'react-native-wifi-reborn';
-import Zeroconf from 'react-native-zeroconf';
+
+
 
 import { resolveEspIp } from '../utils/EspDiscovery';
 
@@ -60,10 +61,44 @@ export default function ResetwifiNetwork({ navigation }) {
     setSelSSID(ssid); setNewPw(''); setShowPw(false); setModal('password');
   };
 
+  // ---- helpers (component ke andar, changeWifi ke upar rakho) ----
+
+  const getCurrentSSID = async () => {
+    try {
+      const ssid = await WifiManager.getCurrentWifiSSID();
+      return (ssid || "").replace(/^"|"$/g, "");
+    } catch (err) {
+      console.log("getCurrentWifiSSID error:", err);
+      return null;
+    }
+  };
+
+  const pollForConnection = (targetSSID, { interval = 2000, timeout = 60000 } = {}) => {
+    return new Promise((resolve, reject) => {
+      const start = Date.now();
+      const check = async () => {
+        const current = await getCurrentSSID();
+        console.log("Polling... current:", current, "target:", targetSSID);
+        if (current && current === targetSSID) return resolve(true);
+        if (Date.now() - start >= timeout) return reject(new Error("timeout"));
+        setTimeout(check, interval);
+      };
+      check();
+    });
+  };
+
+
   const changeWifi = async () => {
     if (newPw.length < 8) {
       Alert.alert("Error", "Minimum 8 characters");
       return;
+    }
+
+    // Android: SSID padhne ke liye location permission chahiye
+    if (Platform.OS === "android") {
+      await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+      );
     }
 
     setBusy(true);
@@ -72,56 +107,55 @@ export default function ResetwifiNetwork({ navigation }) {
 
     try {
       console.log("1. Starting resolveEspIp");
-
       const ip = await resolveEspIp();
-
       console.log("2. IP Found:", ip);
 
-      setStatusMsg("Changing WiFi...");
+      setStatusMsg("Sending WiFi credentials...");
+      console.log("3. Sending to:", `http://${ip}/set_wifi`);
 
-      console.log("3. Sending request");
-      console.log("Sending to:", `http://${ip}/set_wifi`);
+      // Credentials bhejo. ESP switch hote hi connection drop karega,
+      // isliye response nahi aayega — error ko ignore karo.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      try {
+        await fetch(`http://${ip}/set_wifi`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `ssid=${encodeURIComponent(selSSID)}&password=${encodeURIComponent(newPw)}`,
+          signal: controller.signal,
+        });
+      } catch (sendErr) {
+        console.log("Expected drop:", sendErr.name, sendErr.message);
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
-      const res = await fetch(`http://${ip}/set_wifi`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: `ssid=${encodeURIComponent(selSSID)}&password=${encodeURIComponent(newPw)}`,
-      });
+      // Polling: second WiFi se connect hone tak wait karo
+      setStatusMsg(`Connect to "${selSSID}" — waiting...`);
+      console.log("4. Polling for:", selSSID);
 
-      setBusy(false);
-      setModal("");
-
-      if (res.ok) {
+      try {
+        await pollForConnection(selSSID, { interval: 2000, timeout: 60000 });
+        console.log("5. Connected to second WiFi");
+        setBusy(false);
+        setModal("");
+        navigation.navigate("WiFiList");
+      } catch (pollErr) {
+        setBusy(false);
+        setModal("");
         Alert.alert(
-          "Success",
-          "WiFi changed successfully.",
-          [
-            {
-              text: "OK",
-              onPress: () => navigation.navigate("WiFiList"),
-            },
-          ]
-        );
-      } else {
-        Alert.alert(
-          "Failed",
-          `Failed to change WiFi. (${res.status})`
+          "Not Connected",
+          `"${selSSID}" se connect nahi hua. Manually connect karke dobara try karein.`
         );
       }
     } catch (e) {
+      // Sirf resolveEspIp fail hone par (device na mila)
       setBusy(false);
       setModal("");
-
       console.log("ERROR NAME:", e.name);
       console.log("ERROR MESSAGE:", e.message);
       console.log("FULL ERROR:", e);
-
-      Alert.alert(
-        "Error",
-        e.message || "Unable to communicate with ESP32."
-      );
+      Alert.alert("Error", e.message || "Unable to communicate with ESP32.");
     }
   };
   return (

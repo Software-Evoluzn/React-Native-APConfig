@@ -69,7 +69,7 @@ export default function PasswordScreen({ route, navigation }) {
   // ----------------------------------------------------------------
   const handleConnect = async () => {
     if (password.length < 8) {
-      Alert.alert('Error', 'Password kam se kam 8 characters ka hona chahiye');
+      Alert.alert('Error', 'Password length is less that 8 ');
       return;
     }
 
@@ -152,9 +152,9 @@ export default function PasswordScreen({ route, navigation }) {
 
   const onFailed = () => {
     setErrorMsg(
-      'Device WiFi se connect nahi ho paaya. Aam wajah: galat password, ' +
-      'ya network 5GHz hai (ESP32 sirf 2.4GHz support karta hai). ' +
-      'Password check karke dobara try karein.'
+      'Device not connected to wifi . because: Wrong password, ' +
+      'network is 5Ghz (ESP32 support 2.4GHz ). ' +
+      'Please check password .'
     );
     setStatus(STATUS.FAILED);
   };
@@ -218,10 +218,10 @@ export default function PasswordScreen({ route, navigation }) {
           <View style={cardStyle.success}>
             <Text style={cardStyle.successTitle}>✓ Connected</Text>
             <Text style={cardStyle.muted}>
-              Device ne "{network.SSID}" se connect kar liya hai.
+              Device connected to this  "{network.SSID}" .
             </Text>
             <Text style={cardStyle.muted}>
-              Ab apne phone ko wapas "{network.SSID}" se connect karein.
+              Connect your phone to this  "{network.SSID} Network" .
             </Text>
 
             <TouchableOpacity
@@ -236,7 +236,7 @@ export default function PasswordScreen({ route, navigation }) {
         {/* ---- FAILED ---- */}
         {status === STATUS.FAILED && (
           <View style={cardStyle.error}>
-            <Text style={cardStyle.errorTitle}>✕ Connect Nahi Hua</Text>
+            <Text style={cardStyle.errorTitle}>✕ Not Connected</Text>
             <Text style={cardStyle.errorMsg}>{errorMsg}</Text>
 
             <TouchableOpacity onPress={handleRetry} style={cardStyle.retryBtn}>
